@@ -1,0 +1,118 @@
+//---------------------------------------------------------------------------
+#include <vcl.h>
+#pragma hdrstop
+#include <winsock2.h>
+#include "Unit1.h"
+#include <winsock.h>
+#include <stdio.h>
+#include <string>
+#include "Registry.hpp"
+//---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+#pragma resource "MyRes.RES"
+#pragma resource "MyRes_WIN_XP.RES"
+#pragma resource "MyRes_WIN_7.RES"
+
+TForm1 *Form1;
+TStringList *NameBAT_OTHER = new TStringList;
+TStringList *NameBAT_XP = new TStringList;
+TStringList *NameBAT_7 = new TStringList;
+TStringList *TXT_Name = new TStringList;
+//---------------------------------------------------------------------------
+__fastcall TForm1::TForm1(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+//---------------------------------------------------------------------------
+AnsiString Del_Space(AnsiString a)  //удаление пробелов вначале и конце строк
+	{
+	int i;
+		if(a.Length()>1)          //удаление пробелов в начале строки
+			{
+				while (a[1]==' ')
+					a.Delete(1,1);
+			}
+
+		if(a.Length()>1)          //удаление пробелов в конце строки
+			{
+				while (a[a.Length()]==' ')
+					a.Delete(a.Length(),1);
+			}
+		return a;
+	}
+
+AnsiString DosToWin(AnsiString a)      //перевод в читабельный вид - мусор, но пусть побудет :)
+{
+  int l;
+  l = a.Length();
+  OemToAnsiBuff(a.c_str(), a.c_str(),l);
+  return a.c_str();
+}
+
+AnsiString WinToDos(AnsiString a)      //перевод в читабельный вид - мусор, но пусть побудет :)
+{
+  int l;
+  l = a.Length();
+  //AnsiBuffToOem(a.c_str(), a.c_str(),l);
+  return a.c_str();
+}
+void __fastcall TForm1::Console(AnsiString Command_text, AnsiString text)
+{
+  system(Command_text.c_str());
+  if(text!="")
+	Memo2->Lines->Add(text);
+  Application->ProcessMessages();
+}
+void __fastcall TForm1::Clear(void)
+{//Удаление данных во всех полях
+ for(int i = 0; i < ComponentCount; i++)
+ {
+   TEdit* edit;
+   TMemo* memo;
+
+   edit = dynamic_cast<TEdit*>(Components[i]);
+   memo = dynamic_cast<TMemo*>(Components[i]);
+
+   if(edit) edit->Clear();
+   if(memo) memo->Clear();
+ }
+}
+void __fastcall TForm1::Column_Optimized(void)
+{//Выравнивание столбцов
+ for(int i = 0; i < 9 ; i++) //9 - количество столбцов в гриде, изменяй эту велечину по мере добавления/удаления столбцов базы
+ {
+   if(i == 0) DBGrid1->Columns->Items[i]->Width = 30; //первый покороче
+   else DBGrid1->Columns->Items[i]->Width = 100;  //остальные по 100
+ }
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::FormCreate(TObject *Sender)
+{
+ NameBAT_OTHER->Add("MD_PATH");
+ NameBAT_OTHER->Add("WORKGROUP");
+ NameBAT_OTHER->Add("COMPUTERNAME");
+ NameBAT_OTHER->Add("COMMENT");
+
+ NameBAT_XP->Add("IP_ADRESS_WIN_XP");
+ NameBAT_XP->Add("MASK_WIN_XP");
+ NameBAT_XP->Add("GATEWAY_WIN_XP");
+
+ NameBAT_7->Add("IP_ADRESS_WIN_SEVEN");
+ NameBAT_7->Add("MASK_WIN_SEVEN");
+ NameBAT_7->Add("GATEWAY_WIN_SEVEN");
+ //------------Определение версии ОС-----------------------------------------
+	Console("wmic.exe os get caption>OS_v.txt", "Определение версии Windows");
+ TXT_Name->LoadFromFile("OS_v.txt");
+	Console("del OS_v.txt", "");
+ GroupBox1->Caption=TXT_Name->Strings[1]; //загрузка версии ОС
+	if(GroupBox1->Caption.Pos("Windows 7"))	GroupBox1->Caption="Windows 7";
+ else
+	if(GroupBox1->Caption.Pos("Windows XP")) GroupBox1->Caption="Windows XP";
+ else
+	GroupBox1->Caption="ОС не поддерживается";
+//---------------------------------------------------------------------------
+ //ADOQuery1->Active = true; //включение базы (к какой таблице подключать описано в параметре "SQL"
+ //Column_Optimized(); //Выравнивание столбцов, я не разобрался как их выровнять по объёму данных
+}
+//---------------------------------------------------------------------------

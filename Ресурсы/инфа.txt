@@ -1,0 +1,9 @@
+0.Скинуть в эту папку файл NameFile который нужно запаковать
+1.Создать MyRes.rc с содержанием (Имя Тип_данных Имя_файла): NAME GAVNO "name.bat"
+2.Перетащить MyRes.rc на brcc32.exe
+3.Скопировать получившийся MyRes.RES в папку с проектом
+4.Подключить его в cpp: #pragma resource "MyRes.RES"
+5.Распаковать: 
+  TResourceStream *res = new TResourceStream(0,L"NAME", L"GAVNO");
+  res->SaveToFile("NAME.bat");
+  delete res;

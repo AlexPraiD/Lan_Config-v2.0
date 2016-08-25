@@ -1,0 +1,263 @@
+//---------------------------------------------------------------------------
+#include <vcl.h>
+#pragma hdrstop
+#include <winsock2.h>
+#include "Unit1.h"
+#include <winsock.h>
+#include <stdio.h>
+#include <string>
+#include "Registry.hpp"
+//---------------------------------------------------------------------------
+#pragma package(smart_init)
+#pragma resource "*.dfm"
+#pragma resource "MyRes.RES"
+#pragma resource "MyRes_WIN_XP.RES"
+#pragma resource "MyRes_WIN_7.RES"
+
+TForm1 *Form1;
+TStringList *NameBAT_OTHER = new TStringList;
+TStringList *NameBAT_XP = new TStringList;
+TStringList *NameBAT_7 = new TStringList;
+TStringList *TXT_Name = new TStringList;
+//---------------------------------------------------------------------------
+__fastcall TForm1::TForm1(TComponent* Owner)
+	: TForm(Owner)
+{
+}
+//---------------------------------------------------------------------------
+AnsiString Del_Space(AnsiString a)  //удаление пробелов вначале и конце строк
+	{
+	int i;
+		if(a.Length()>1)          //удаление пробелов в начале строки
+			{
+				while (a[1]==' ')
+					a.Delete(1,1);
+			}
+
+		if(a.Length()>1)          //удаление пробелов в конце строки
+			{
+				while (a[a.Length()]==' ')
+					a.Delete(a.Length(),1);
+			}
+		return a;
+	}
+
+AnsiString DosToWin(AnsiString a)      //перевод в читабельный вид - мусор, но пусть побудет :)
+{
+  int l;
+  l = a.Length();
+  OemToAnsiBuff(a.c_str(), a.c_str(),l);
+  return a.c_str();
+}
+
+AnsiString WinToDos(AnsiString a)      //перевод в читабельный вид - мусор, но пусть побудет :)
+{
+  int l;
+  l = a.Length();
+  //AnsiBuffToOem(a.c_str(), a.c_str(),l);
+  return a.c_str();
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Console(AnsiString Command_text, AnsiString text)
+{
+  system(Command_text.c_str());
+  if(text!="")
+	Memo2->Lines->Add(text);
+  Application->ProcessMessages();
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Clear(void)
+{//Удаление данных во всех полях
+ for(int i = 0; i < ComponentCount; i++)
+ {
+   TEdit* edit;
+   TMemo* memo;
+
+   edit = dynamic_cast<TEdit*>(Components[i]);
+   memo = dynamic_cast<TMemo*>(Components[i]);
+
+   if(edit) edit->Clear();
+   if(memo) memo->Clear();
+ }
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Column_Optimized(void)
+{//Выравнивание столбцов
+ for(int i = 0; i < 9 ; i++) //9 - количество столбцов в гриде, изменяй эту велечину по мере добавления/удаления столбцов базы
+ {
+   if(i == 0) DBGrid1->Columns->Items[i]->Width = 30; //первый покороче
+   else DBGrid1->Columns->Items[i]->Width = 100;  //остальные по 100
+ }
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::SQL_Query(AnsiString query)
+{//Функция отправки запроса в базу
+ ADOQuery1->Active = false;  //выключение для редактирования параметров
+ ADOQuery1->SQL->Clear(); //очистка текста старого запроса
+ ADOQuery1->SQL->Add(query); //добавление текста нового запроса
+ ADOQuery1->ExecSQL(); //отправка запроса в базу
+
+ //== следующий блок кода возможно нужно вынести в другую функцию, но т.к. таблица к сожалению находится на одной форме, придётся выебнутся, так делать не красиво :(
+ //отправка запроса для вывода всех данных таблицы (обновление таблицы)
+ ADOQuery1->SQL->Clear(); //очистка текста старого запроса
+ ADOQuery1->SQL->Add("Select * from `Parameter_s`"); //отправка запроса для вывода всех данных таблицы Parameter_s
+ ADOQuery1->Active = true; //включение компонента с выполнением запроса
+ Column_Optimized(); //запуск выравнивания столбцов
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::FormCreate(TObject *Sender)
+{
+ NameBAT_OTHER->Add("MD_PATH");
+ NameBAT_OTHER->Add("WORKGROUP");
+ NameBAT_OTHER->Add("COMPUTERNAME");
+ NameBAT_OTHER->Add("COMMENT");
+
+ NameBAT_XP->Add("IP_ADRESS_WIN_XP");
+ NameBAT_XP->Add("MASK_WIN_XP");
+ NameBAT_XP->Add("GATEWAY_WIN_XP");
+
+ NameBAT_7->Add("IP_ADRESS_WIN_SEVEN");
+ NameBAT_7->Add("MASK_WIN_SEVEN");
+ NameBAT_7->Add("GATEWAY_WIN_SEVEN");
+ //------------Определение версии ОС-----------------------------------------
+	Console("wmic.exe os get caption>OS_v.txt", "Определение версии Windows");
+ TXT_Name->LoadFromFile("OS_v.txt");
+	Console("del OS_v.txt", "");
+ GroupBox1->Caption=TXT_Name->Strings[1]; //загрузка версии ОС
+	if(GroupBox1->Caption.Pos("Windows 7"))	GroupBox1->Caption="Windows 7";
+ else
+	if(GroupBox1->Caption.Pos("Windows XP")) GroupBox1->Caption="Windows XP";
+ else
+	GroupBox1->Caption="ОС не поддерживается";
+//---------------------------------------------------------------------------
+ //ADOQuery1->Active = true; //включение базы (к какой таблице подключать описано в параметре "SQL"
+ //Column_Optimized(); //Выравнивание столбцов, я не разобрался как их выровнять по объёму данных
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::FormClose(TObject *Sender, TCloseAction &Action)
+{
+Console("del temp_s\\*.* /q", "");
+Console("rd temp_s", "Удаление кеша");
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm1::Button1Click(TObject *Sender)
+{
+Clear();
+ Button4->Enabled = false; //выключение кнопки сохранения отредактированных данных
+	for(int i = 0; i < NameBAT_OTHER->Count; i++)
+		{
+			TResourceStream *res = new TResourceStream(0,NameBAT_OTHER->Strings[i],L"GAVNO");
+			res->SaveToFile(NameBAT_OTHER->Strings[i]+".bat"); //распаковка батника
+			delete res;
+
+			ShellExecute(Handle,L"open",NameBAT_OTHER->Strings[i].c_str(),NULL,NULL,SW_HIDE); //запуск батника
+		}
+ if(GroupBox1->Caption=="Windows XP")
+	for(int i = 0; i < NameBAT_XP->Count; i++)
+		{
+			TResourceStream *res = new TResourceStream(0,NameBAT_XP->Strings[i],L"GAVNO");
+			res->SaveToFile(NameBAT_XP->Strings[i]+".bat"); //распаковка батника
+			delete res;
+
+			ShellExecute(Handle,L"open",NameBAT_XP->Strings[i].c_str(),NULL,NULL,SW_HIDE); //запуск батника
+		}
+if(GroupBox1->Caption=="Windows 7")
+	for(int i = 0; i < NameBAT_7->Count; i++)
+		{
+			TResourceStream *res = new TResourceStream(0,NameBAT_7->Strings[i],L"GAVNO");
+			res->SaveToFile(NameBAT_7->Strings[i]+".bat"); //распаковка батника
+			delete res;
+
+			ShellExecute(Handle,L"open",NameBAT_7->Strings[i].c_str(),NULL,NULL,SW_HIDE); //запуск батника
+		}
+
+	Sleep(2000);   // без неё торопится грузить еще не сформированный тхт
+
+//Считывание данных с документа ====================================
+
+	while (FileExists("temp_s\\IP_ADDRESS.txt")!=false)
+		{
+			TXT_Name->LoadFromFile("temp_s\\IP_ADDRESS.txt");
+			Edit1->Text=(DosToWin(TXT_Name->Strings[0]));
+			Console("del temp_s\\IP_ADDRESS.txt", "Идентификация IP адресса..");
+		}
+	while (FileExists("temp_s\\MASK.txt")!=false)
+		{
+			TXT_Name->LoadFromFile("temp_s\\MASK.txt");
+			Edit2->Text=(DosToWin(TXT_Name->Strings[0]));
+			Console("del temp_s\\MASK.txt", "Идентификация маски..");
+		}
+	while (FileExists("temp_s\\GATEWAY.txt")!=false)
+		{
+			TXT_Name->LoadFromFile("temp_s\\GATEWAY.txt");
+			Edit3->Text=(DosToWin(TXT_Name->Strings[0]));
+			Console("del temp_s\\GATEWAY.txt", "Идентификация шлюза..");
+		}
+	while (FileExists("temp_s\\WORKGROUP.txt")!=false)
+		{
+			TXT_Name->LoadFromFile("temp_s\\WORKGROUP.txt");
+			Edit6->Text=DosToWin(TXT_Name->Strings[0]); //Ну ты ваще, открой старый проект и погляди что ты тут сделал: перекинул из одного TStringList в другой TStringList и знаешь что поменялось? А нифига - только имена... дать бы тебе по шее ладошкой >_<
+			Console("del temp_s\\WORKGROUP.txt", "Идентификация рабочей группы..");
+		}
+	while (FileExists("temp_s\\COMPUTERNAME.txt")!=false)
+		{
+			TXT_Name->LoadFromFile("temp_s\\COMPUTERNAME.txt");
+			Edit7->Text=(DosToWin(TXT_Name->Strings[0]));  //у меня после Имя_Пользователя есть какойто мусор
+			Console("del temp_s\\COMPUTERNAME.txt", "Идентификация имени компьютера..");
+		}
+	while (FileExists("temp_s\\COMMENT.txt")!=false)
+		{
+			TXT_Name->LoadFromFile("temp_s\\COMMENT.txt");
+			Edit8->Text=(DosToWin(TXT_Name->Strings[0]));  //у меня после Имя_Пользователя есть какойто мусор
+			Console("del temp_s\\COMMENT.txt", "Идентификация коменнтария..");
+			if (Edit8->Text.Pos("Режим вывода команд"))
+				Edit8->Text="";
+		}
+//Удаление пробелов в начале и конце строк==========================
+
+Edit1->Text=Del_Space(Edit1->Text);
+Edit2->Text=Del_Space(Edit2->Text);
+Edit3->Text=Del_Space(Edit3->Text);
+Edit4->Text=Del_Space(Edit4->Text);
+Edit5->Text=Del_Space(Edit5->Text);
+Edit6->Text=Del_Space(Edit6->Text);
+Edit7->Text=Del_Space(Edit7->Text);
+
+//DNS ==============================================================
+	TRegistry *reg = new TRegistry();
+	TStringList *Interfaces = new TStringList;
+
+	reg->RootKey = HKEY_LOCAL_MACHINE;
+	reg->OpenKey("SYSTEM\\CurrentControlSet\\services\\Tcpip\\Parameters\\Interfaces",0);
+	reg->GetKeyNames(Interfaces);
+	reg->CloseKey();
+
+	for(int i = 0; i < Interfaces->Count; i++)
+		{
+			reg->OpenKeyReadOnly("SYSTEM\\CurrentControlSet\\services\\Tcpip\\Parameters\\Interfaces\\"+Interfaces->Strings[i]+"");
+			if(reg->ReadString("NameServer") != "")
+				{
+					Edit4->Text = reg->ReadString("NameServer");
+				}
+			reg->CloseKey();
+		}
+	delete reg;
+	delete Interfaces;
+
+//Разделение ДНС1 и ДНС2, если имеются==============================
+	if (Edit4->Text.Pos(","))
+	{
+		Edit5->Text=Edit4->Text.Delete(1,Edit4->Text.Pos(","));
+		Edit4->Text=Edit4->Text.Delete(Edit4->Text.Pos(","),Edit4->Text.Length()-Edit4->Text.Pos(",")+1);
+	}
+}
+//---------------------------------------------------------------------------
+void __fastcall TForm1::Button3Click(TObject *Sender)
+{
+//Добавление данных в базу
+ SQL_Query("INSERT INTO `Parameter_s` (IP_ADDRESS,MASK,GATEWAY,DNS_1,DNS_2,COMPUTERNAME,WORKGROUP,COMMENT,Other)VALUES('"+Edit1->Text+"','"+Edit2->Text+"','"+Edit3->Text+"','"+Edit4->Text+"','"+Edit5->Text+"','"+Edit7->Text+"','"+Edit6->Text+"','"+Edit8->Text+"','"+Memo1->Text+"')");
+ //запрос вставки выглядит так: INSERT INTO `Имя_Таблицы` (Поле_1,Поле_2) VALUES ('Текст_значения_1','Текст_значения_2') !!!обрати внимание, на ковычки, имена таблиц обозначаются ковычками на кнопку `Ё`
+ Clear(); //Очищаем эдиты и мемо
+}
+//---------------------------------------------------------------------------

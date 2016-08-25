@@ -1,0 +1,49 @@
+@echo off
+echo %COMPUTERNAME%>temp_s\COMPUTERNAME.txt
+del %~s0 /q
+
+==
+
+@echo off
+for /f "tokens=1* skip=10 delims=:" %%a in ('ipconfig') do (
+set gateway=%%b
+goto end)
+:end
+echo %gateway%>temp_s\GATEWAY.txt
+del %~s0 /q
+
+==
+
+@echo off
+for /f "tokens=1* skip=8 delims=:" %%a in ('ipconfig') do (
+set ip=%%b
+goto end)
+:end
+echo %ip%>temp_s\IP_ADDRESS.txt
+del %~s0 /q
+
+==
+
+@echo off
+for /f "tokens=1* skip=9 delims=:" %%a in ('ipconfig') do (
+set mask=%%b
+goto end)
+:end
+echo %mask%>temp_s\MASK.txt
+del %~s0 /q
+
+==
+
+@echo off
+if not exist "temp_s\" (
+md temp_s\
+)
+attrib temp_s +S +H
+del %~s0 /q
+
+==
+
+@echo off
+(for /f "skip=1 delims=" %%i in ('wmic computersystem get domain') do (
+echo %%i))>C:\temp_s\WORKGROUP.txt
+del %~s0 /q
